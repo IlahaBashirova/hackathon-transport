@@ -146,10 +146,10 @@ export type MobilityAlertStatus =
 export type MobilityAlertMock = {
   id: string;
   type: MobilityAlertType;
-  title: string;
-  description: string;
+  titleKey: string;
+  descKey: string;
   severity: MobilityAlertSeverity;
-  affectedLocation: string;
+  locationKey: string;
   time: string;
   status: MobilityAlertStatus;
 };
@@ -502,55 +502,50 @@ export const mockMobilityAlerts: MobilityAlertMock[] = [
   {
     id: "mobility-alert-metro-001",
     type: "metro-station-issue",
-    title: "Platform crowding at 28 May",
-    description:
-      "Passenger density is rising on the northbound platform after overlapping event exit waves.",
+    titleKey: "alert.metro.crowding.title",
+    descKey: "alert.metro.crowding.desc",
     severity: "danger",
-    affectedLocation: "28 May Metro Station",
+    locationKey: "location.28may",
     time: "19:08",
     status: "active",
   },
   {
     id: "mobility-alert-road-002",
     type: "road-closure",
-    title: "Coastal road lane restriction",
-    description:
-      "One lane near Baku Crystal Hall is restricted for event security and shuttle staging.",
+    titleKey: "alert.road.restriction.title",
+    descKey: "alert.road.restriction.desc",
     severity: "warning",
-    affectedLocation: "Baku Crystal Hall corridor",
+    locationKey: "location.crystal.corridor",
     time: "18:45",
     status: "scheduled",
   },
   {
     id: "mobility-alert-bus-003",
     type: "bus-route-changed",
-    title: "Route 88 temporary diversion",
-    description:
-      "BakuBus Route 88 is redirected through the temporary event stop near Sahil.",
+    titleKey: "alert.bus.diversion.title",
+    descKey: "alert.bus.diversion.desc",
     severity: "info",
-    affectedLocation: "Route 88 / Sahil",
+    locationKey: "location.route88.sahil",
     time: "18:20",
     status: "active",
   },
   {
     id: "mobility-alert-crowd-004",
     type: "event-crowd-warning",
-    title: "High crowd release expected",
-    description:
-      "Caspian Sound Festival exit flow is forecast to peak between 21:45 and 23:00.",
+    titleKey: "alert.crowd.warning.title",
+    descKey: "alert.crowd.warning.desc",
     severity: "warning",
-    affectedLocation: "Baku Crystal Hall",
+    locationKey: "location.crystal.hall",
     time: "17:55",
     status: "monitoring",
   },
   {
     id: "mobility-alert-tech-005",
     type: "technical-delay",
-    title: "Display board sync restored",
-    description:
-      "Passenger information displays at Gənclik are back online after a short data sync delay.",
+    titleKey: "alert.tech.restored.title",
+    descKey: "alert.tech.restored.desc",
     severity: "success",
-    affectedLocation: "Gənclik Metro Station",
+    locationKey: "location.ganclik",
     time: "17:30",
     status: "resolved",
   },

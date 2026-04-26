@@ -155,7 +155,7 @@ export function ImportITicketEvent({
                 className="h-12 min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.06] px-4 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/60 focus:ring-4 focus:ring-cyan-300/10"
                 id="event-link"
                 onChange={(event) => setLinkValue(event.target.value)}
-                placeholder="https://events.az/demo-event"
+                placeholder="https://iticket.az/events/demo-event"
                 type="url"
                 value={linkValue}
               />
