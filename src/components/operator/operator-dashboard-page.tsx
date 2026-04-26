@@ -264,9 +264,9 @@ function OperatorDashboardContent() {
                         {alert.status}
                       </span>
                     </div>
-                    <h3 className="mt-4 font-semibold text-white">{alert.title}</h3>
+                    <h3 className="mt-4 font-semibold text-white">{t(alert.titleKey)}</h3>
                     <p className="mt-2 text-sm leading-5 text-slate-400">
-                      {alert.affectedLocation}
+                      {t(alert.locationKey)}
                     </p>
                   </div>
                 ))}

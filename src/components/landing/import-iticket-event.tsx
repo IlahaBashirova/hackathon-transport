@@ -12,20 +12,24 @@ import {
   Ticket,
   TrainFront,
   UsersRound,
+  Bus,
+  AlertTriangle,
+  Globe,
+  Brain,
+  Activity,
+  Info,
 } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 import {
   ExtractedEventData,
+  PredictionEngineResult,
+  ProcessingStatus,
   TransportImpactRecommendation,
 } from "@/lib/ai/types";
-import {
-  CongestionRisk,
-  mockITicketEvents,
-  mockUpcomingEventImpacts,
-} from "@/lib/mock-data";
+import { CongestionRisk } from "@/lib/mock-data";
 import { useI18n } from "@/lib/i18n";
 
-type ImportStep = "idle" | "reading" | "extracting" | "complete";
+type ImportStep = "idle" | "fetching" | "extracting" | "predicting" | "complete";
 
 const riskStyles = {
   critical: "border-red-400/40 bg-red-500/10 text-red-300",
@@ -52,10 +56,12 @@ export function ImportITicketEvent({
   const [linkValue, setLinkValue] = useState("");
   const [step, setStep] = useState<ImportStep>("idle");
   const [result, setResult] = useState<ExtractedEventData | null>(null);
-  const [recommendation, setRecommendation] =
-    useState<TransportImpactRecommendation | null>(null);
+  const [prediction, setPrediction] = useState<PredictionEngineResult | null>(null);
+  const [recommendation, setRecommendation] = useState<TransportImpactRecommendation | null>(null);
+  const [status, setStatus] = useState<ProcessingStatus | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
-  const isProcessing = step === "reading" || step === "extracting";
+  const isProcessing = step === "fetching" || step === "extracting" || step === "predicting";
   const canAnalyze = linkValue.trim().length > 0 && !isProcessing;
 
   const actionTitles = useMemo(
@@ -70,58 +76,57 @@ export function ImportITicketEvent({
       return;
     }
 
+    // Reset state
     setResult(null);
+    setPrediction(null);
     setRecommendation(null);
-    setStep("reading");
+    setStatus(null);
+    setWarning(null);
+    setStep("fetching");
 
-    await delay(850);
+    try {
+      // Call the unified analysis API
+      const response = await fetch("/api/event/analyze", {
+        body: JSON.stringify({ url: linkValue.trim() }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
 
-    const extractResponse = await fetch("/api/ai/extract-event", {
-      body: JSON.stringify({ rawText: linkValue.trim() }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-    const extractPayload = (await extractResponse.json()) as {
-      event: ExtractedEventData;
-    };
-    const extractedEvent = extractPayload.event;
+      const payload = await response.json() as {
+        success: boolean;
+        event: ExtractedEventData;
+        prediction?: PredictionEngineResult;
+        recommendation: TransportImpactRecommendation;
+        status: ProcessingStatus;
+        warning?: string;
+        error?: string;
+      };
 
-    setStep("extracting");
-    await delay(950);
+      if (!payload.success) {
+        throw new Error(payload.error || "Analysis failed");
+      }
 
-    const sourceEvent = mockITicketEvents.find(
-      (mockEvent) => mockEvent.eventName === extractedEvent.eventName,
-    );
-    const impact = mockUpcomingEventImpacts.find(
-      (item) => item.eventId === sourceEvent?.id,
-    );
-    const congestionRisk: CongestionRisk =
-      sourceEvent?.congestionRisk ?? "high";
+      // Update state with results
+      setResult(payload.event);
+      setPrediction(payload.prediction || null);
+      setRecommendation(payload.recommendation);
+      setStatus(payload.status);
+      if (payload.warning) {
+        setWarning(payload.warning);
+      }
 
-    const recommendResponse = await fetch("/api/ai/recommend-impact", {
-      body: JSON.stringify({
-        event: extractedEvent,
-        prediction: {
-          congestionRisk,
-          confidence: 0.91,
-          passengerImpact: impact?.passengerImpact ?? "8,500",
-          peakTime: impact?.peakTime ?? "18:00-19:30",
-        },
-      }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-    const recommendPayload = (await recommendResponse.json()) as {
-      recommendation: TransportImpactRecommendation;
-    };
+      onProcessed?.({
+        event: payload.event,
+        recommendation: payload.recommendation,
+      });
 
-    setResult(extractedEvent);
-    setRecommendation(recommendPayload.recommendation);
-    onProcessed?.({
-      event: extractedEvent,
-      recommendation: recommendPayload.recommendation,
-    });
-    setStep("complete");
+      setStep("complete");
+    } catch (error) {
+      console.error("Import failed:", error);
+      // Show error but keep form usable
+      setWarning(error instanceof Error ? error.message : "Import failed");
+      setStep("idle");
+    }
   }
 
   return (
@@ -192,7 +197,11 @@ export function ImportITicketEvent({
                   key={step}
                   transition={{ duration: 0.2 }}
                 >
-                  {t(`import.${step}`)}
+                  {step === "fetching" && "Fetching event page..."}
+                  {step === "extracting" && "Extracting event details with AI..."}
+                  {step === "predicting" && "Calculating transport impact..."}
+                  {step === "idle" && t("import.idle")}
+                  {step === "complete" && t("import.complete")}
                 </motion.p>
               </AnimatePresence>
             </div>
@@ -202,11 +211,13 @@ export function ImportITicketEvent({
                   width:
                     step === "idle"
                       ? "8%"
-                      : step === "reading"
-                        ? "42%"
+                      : step === "fetching"
+                        ? "25%"
                         : step === "extracting"
-                          ? "74%"
-                          : "100%",
+                          ? "55%"
+                          : step === "predicting"
+                            ? "85%"
+                            : "100%",
                 }}
                 className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-300"
                 transition={{ duration: 0.45, ease: "easeOut" }}
@@ -249,24 +260,52 @@ export function ImportITicketEvent({
                   <InfoTile
                     icon={CalendarDays}
                     label="Date / time"
-                    value={`${result.date} · ${result.startTime}-${result.endTime}`}
+                    value={result.date 
+                      ? `${result.date}${result.startTime && result.endTime ? ` · ${result.startTime}-${result.endTime}` : ""}` 
+                      : "Unknown"}
                   />
                   <InfoTile
                     icon={Ticket}
                     label="Ticket capacity"
-                    value={result.ticketCapacity.toLocaleString()}
+                    value={result.ticketCapacity?.toLocaleString() ?? "Not available"}
                   />
                   <InfoTile
                     icon={UsersRound}
                     label="Estimated attendance"
-                    value={result.estimatedAttendance.toLocaleString()}
+                    value={result.estimatedAttendance?.toLocaleString() ?? "Not available"}
                   />
                   <InfoTile
                     icon={TrainFront}
                     label="Nearest metro stations"
-                    value={result.nearestMetroStations.join(", ")}
+                    value={result.nearestMetroStations.join(", ") || "None identified"}
                   />
                 </div>
+
+                {/* Prediction Data */}
+                {prediction && (
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <InfoTile
+                      icon={TrainFront}
+                      label="Metro congestion"
+                      value={`${prediction.metroCongestionScore}/100 (${prediction.metroPassengers.toLocaleString()} pax)`}
+                    />
+                    <InfoTile
+                      icon={Bus}
+                      label="Bus congestion"
+                      value={`${prediction.busCongestionScore}/100 (${prediction.busPassengers.toLocaleString()} pax)`}
+                    />
+                    <InfoTile
+                      icon={CalendarDays}
+                      label="Peak arrival"
+                      value={prediction.peakArrivalWindow}
+                    />
+                    <InfoTile
+                      icon={CalendarDays}
+                      label="Peak exit"
+                      value={prediction.peakExitWindow}
+                    />
+                  </div>
+                )}
 
                 <div className="mt-5 rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-4">
                   <p className="text-sm font-semibold text-cyan-100">
@@ -296,6 +335,17 @@ export function ImportITicketEvent({
                     ))}
                   </div>
                 </div>
+
+                {/* Warning message */}
+                {warning && (
+                  <div className="mt-4 flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
+                    <AlertTriangle size={14} />
+                    {warning}
+                  </div>
+                )}
+
+                {/* Technical Status Card */}
+                {status && <TechnicalStatusCard status={status} prediction={prediction || undefined} />}
               </motion.div>
             ) : (
               <motion.div
@@ -337,6 +387,78 @@ function InfoTile({ icon: Icon, label, value }: InfoTileProps) {
         {label}
       </p>
       <p className="mt-1 text-sm font-semibold text-slate-100">{value}</p>
+    </div>
+  );
+}
+
+/**
+ * Technical Status Card - shows which components are real vs mock
+ */
+function TechnicalStatusCard({ status, prediction }: { status: ProcessingStatus; prediction?: PredictionEngineResult }) {
+  const getStatusIcon = (value: string) => {
+    if (value === "real" || value === "openai" || value === "formula-based") {
+      return <CheckCircle2 size={12} className="text-emerald-400" />;
+    }
+    return <AlertTriangle size={12} className="text-amber-400" />;
+  };
+
+  const getStatusColor = (value: string) => {
+    if (value === "real" || value === "openai" || value === "formula-based") {
+      return "text-emerald-400";
+    }
+    if (value === "fallback" || value === "mock") {
+      return "text-amber-400";
+    }
+    return "text-red-400";
+  };
+
+  return (
+    <div className="mt-4 rounded-lg border border-white/10 bg-slate-950/55 p-3">
+      <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-400">
+        <Info size={14} />
+        <span>Technical Status (Dev Mode)</span>
+      </div>
+      <div className="grid gap-1.5 text-xs sm:grid-cols-2">
+        <div className="flex items-center gap-2">
+          <Globe size={12} className="text-slate-500" />
+          <span className="text-slate-400">URL Fetch:</span>
+          <span className={`flex items-center gap-1 font-medium ${getStatusColor(status.urlFetch)}`}>
+            {getStatusIcon(status.urlFetch)}
+            {status.urlFetch === "real" ? "Real" : status.urlFetch === "failed" ? "Failed" : "Fallback"}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Brain size={12} className="text-slate-500" />
+          <span className="text-slate-400">AI Provider:</span>
+          <span className={`flex items-center gap-1 font-medium ${getStatusColor(status.aiProvider)}`}>
+            {getStatusIcon(status.aiProvider)}
+            {status.aiProvider === "openai" ? "OpenAI" : "Mock"}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Activity size={12} className="text-slate-500" />
+          <span className="text-slate-400">Prediction:</span>
+          <span className={`flex items-center gap-1 font-medium ${getStatusColor(status.prediction)}`}>
+            {getStatusIcon(status.prediction)}
+            {status.prediction === "formula-based" ? "Formula-based" : "Mock"}
+          </span>
+        </div>
+        {prediction && (
+          <div className="flex items-center gap-2">
+            <UsersRound size={12} className="text-slate-500" />
+            <span className="text-slate-400">Attendance:</span>
+            <span className={`font-medium ${prediction.isBasedOnRealCapacity ? "text-emerald-400" : "text-amber-400"}`}>
+              {prediction.isBasedOnRealCapacity ? "Real capacity" : "Estimated"}
+            </span>
+          </div>
+        )}
+      </div>
+      {status.usingDemoFallback && (
+        <div className="mt-2 flex items-center gap-2 rounded bg-amber-500/10 px-2 py-1 text-xs text-amber-300">
+          <AlertTriangle size={12} />
+          Demo fallback data used
+        </div>
+      )}
     </div>
   );
 }

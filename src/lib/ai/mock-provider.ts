@@ -33,6 +33,8 @@ function toExtractedEventData(rawText: string): ExtractedEventData {
     estimatedAttendance: event.estimatedAttendance,
     nearestMetroStations: event.nearestMetroStations,
     nearbyBusRoutes: event.nearbyBusRoutes,
+    confidence: 0.5,
+    sourceUrl: "mock://fallback",
   };
 }
 

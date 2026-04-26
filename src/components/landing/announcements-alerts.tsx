@@ -83,6 +83,7 @@ export function AnnouncementsAlerts() {
 }
 
 function AlertCard({ alert }: { alert: MobilityAlertMock }) {
+  const { t } = useI18n();
   const Icon = typeIcons[alert.type];
   const StatusIcon = alert.status === "resolved" ? CheckCircle2 : Clock3;
 
@@ -105,16 +106,16 @@ function AlertCard({ alert }: { alert: MobilityAlertMock }) {
       </div>
 
       <h3 className="mt-6 text-lg font-semibold text-slate-950 dark:text-white">
-        {alert.title}
+        {t(alert.titleKey)}
       </h3>
       <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-        {alert.description}
+        {t(alert.descKey)}
       </p>
 
       <div className="mt-5 space-y-2 text-sm">
         <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
           <Info size={15} />
-          {alert.affectedLocation}
+          {t(alert.locationKey)}
         </div>
         <div className="flex items-center justify-between gap-3">
           <span className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
